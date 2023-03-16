@@ -276,3 +276,100 @@ def proximity_filter(df,
     df.drop(['start','end'],axis=1,inplace=True)
     
     return df
+
+def remove_antisense(df,
+                     chrom=0,
+                     start=1,
+                     end=2,
+                     strand=5,
+                     geneid=3,
+                     return_as = False):
+    '''
+    Removes genes from a bedfile that have TSS-TSS,
+    TSS-TES, or TES-TES distances within n basepairs
+    from other genes
+    Parameters
+    __________
+    
+    df : Pandas DataFrame
+        A bedfile imported as a Pandas DataFrame
+    
+    chrom : int or str, default 0
+        The column name of df containing the chromosome
+        
+    start : int or str, default 1
+        The column name of df containing the TSS
+        
+    end : int or str, default 2
+        The column name of df containing the TES
+        
+    strand : int or str, default 5
+        The column name of df containin the gene strand
+        
+    geneid : int or str, default 3
+        The column name of df containing the gene name
+        or accession number
+        
+    return_as : bool, default False
+        Whether to return genes and their antisense transcripts
+        (True) or to return only genes without antisense transcripts
+        (False)
+        
+    Returns
+    _______
+    
+    output : Pandas DataFrame
+        The bedfile containing either only genes with antisense
+        transcripts and those antisense transcripts if return_as
+        is True, or only genes without antisense transcripts if
+        return_as is False
+        
+    '''
+    
+    # Print initial length
+    print('Original Gene Number: ' + str(len(df)))
+    
+    # Make list to store genes to drop
+    dropgenes = []
+    
+    # List unique chromosomes
+    filtchroms = np.unique(df[chrom])
+    
+    for c in filtchroms:
+        subdf = df[df[chrom] == c]
+        
+        for i,v in enumerate(subdf.index):
+            
+            # Pass if gene already identified
+            if subdf.loc[v,geneid] in dropgenes:
+                
+                pass
+            
+            else:
+                # Filter out everything on the same strand
+                onedf = subdf[subdf[strand] != subdf.loc[v,strand]]
+                
+                # Identify TSSes in the middle of other genes
+                loc_tss = subdf.loc[v,start]
+                loc_tes = subdf.loc[v,end]
+                mid = [loc_tss < j < loc_tes for j in onedf[start]]
+                as_inds = [j for j,k in enumerate(mid) if k==True]
+                
+                if len(as_inds) == 0:
+                    pass
+                else:
+                    dropgenes.append(subdf.loc[v,geneid])
+                    for j in as_inds:
+                        dropgenes.append(onedf.iloc[j,geneid])
+                        
+    if return_as == False:
+        df = df[~df[geneid].isin(dropgenes)]
+        print('Genes after Filtering: ' + str(len(df)))
+
+        return df
+    
+    else:
+        df = df[df[geneid].isin(dropgenes)]
+        print('Genes with Antisense: ' + str(len(df)))
+
+        return df
